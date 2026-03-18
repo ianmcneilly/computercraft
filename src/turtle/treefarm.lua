@@ -54,6 +54,10 @@ end
 
 local function saveState()
     local f = fs.open(STATE_FILE, "w")
+    if not f then
+        print("Warning: failed to save state")
+        return
+    end
     f.write(textutils.serialize(state))
     f.close()
 end
@@ -63,7 +67,11 @@ local function loadState()
         local f = fs.open(STATE_FILE, "r")
         local data = f.readAll()
         f.close()
-        return textutils.unserialize(data)
+        local s = textutils.unserialize(data)
+        if s and s.pos and s.rows and s.cols then
+            return s
+        end
+        print("Warning: corrupt state file, starting fresh")
     end
     return nil
 end
@@ -136,7 +144,7 @@ local function waitForFuel()
 end
 
 local function tryForward()
-    for attempt = 1, MAX_RETRIES do
+    for _ = 1, MAX_RETRIES do
         local ok, err = turtle.forward()
         if ok then return true end
         if err == "Out of fuel" then
@@ -151,7 +159,7 @@ local function tryForward()
 end
 
 local function tryUp()
-    for attempt = 1, MAX_RETRIES do
+    for _ = 1, MAX_RETRIES do
         local ok, err = turtle.up()
         if ok then return true end
         if err == "Out of fuel" then
@@ -166,7 +174,7 @@ local function tryUp()
 end
 
 local function tryDown()
-    for attempt = 1, MAX_RETRIES do
+    for _ = 1, MAX_RETRIES do
         local ok, err = turtle.down()
         if ok then return true end
         if err == "Out of fuel" then
@@ -365,6 +373,9 @@ local function suckHere()
 end
 
 local function suckPatrol()
+    -- Note: suck patrol moves the turtle in a 3x3 area around the trunk.
+    -- If interrupted, position will be slightly desynced. Resume logic
+    -- handles this by abandoning the patrol and returning home.
     state.pos.phase = "suck_patrol"
     saveState()
 
@@ -795,6 +806,7 @@ local function startup()
             end
             suckPatrol()
             replant()
+            state.pos.phase = "home"
             -- Continue patrol from next position
         elseif state.pos.phase == "harvesting_down" then
             print("Resuming harvest (descending)...")
@@ -805,6 +817,7 @@ local function startup()
             end
             suckPatrol()
             replant()
+            state.pos.phase = "home"
         elseif state.pos.phase == "suck_patrol" then
             print("Interrupted during collection, returning home...")
             returnHome()
@@ -854,8 +867,8 @@ end
 local function main()
     if not startup() then return end
 
-    -- Initial sapling check — try to pull from chest
-    if turtle.getItemCount(SAPLING_SLOT) < SAPLING_MIN then
+    -- Initial sapling check — try to pull from chest (only if at home)
+    if state.pos.phase == "home" and turtle.getItemCount(SAPLING_SLOT) < SAPLING_MIN then
         face(EAST)
         turtle.select(SAPLING_SLOT)
         turtle.suck()
