@@ -424,3 +424,22 @@ local function suckPatrol()
 
     return true
 end
+
+-------------------------------
+-- Replanting
+-------------------------------
+
+local function replant()
+    -- Turtle is at trunk base, facing south
+    -- Step back to walkway: turn north, move forward, turn back south
+    face(NORTH)
+    tryForward()
+    face(SOUTH)
+
+    -- Place sapling if we have any
+    local count = turtle.getItemCount(SAPLING_SLOT)
+    if count > 0 then
+        turtle.select(SAPLING_SLOT)
+        turtle.place()
+    end
+end
