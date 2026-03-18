@@ -82,3 +82,100 @@ local function initState(rows, cols)
         patrolStartTime = 0,
     }
 end
+
+-------------------------------
+-- Movement primitives
+-------------------------------
+
+local function turnLeft()
+    turtle.turnLeft()
+    state.pos.facing = (state.pos.facing - 1) % 4
+end
+
+local function turnRight()
+    turtle.turnRight()
+    state.pos.facing = (state.pos.facing + 1) % 4
+end
+
+local function face(dir)
+    local diff = (dir - state.pos.facing) % 4
+    if diff == 1 then
+        turnRight()
+    elseif diff == 2 then
+        turnRight()
+        turnRight()
+    elseif diff == 3 then
+        turnLeft()
+    end
+end
+
+-- Wait for player to add fuel — last resort when completely out
+local function waitForFuel()
+    if turtle.getFuelLevel() == "unlimited" then return end
+    if turtle.getFuelLevel() > 0 then return end
+
+    print()
+    print("*** OUT OF FUEL ***")
+    print("Add logs or coal to the turtle inventory.")
+    print("Waiting...")
+
+    while turtle.getFuelLevel() == 0 do
+        sleep(5)
+        for slot = 1, 16 do
+            if turtle.getItemCount(slot) > 0 then
+                turtle.select(slot)
+                if turtle.refuel(0) then
+                    turtle.refuel()
+                end
+            end
+        end
+    end
+
+    turtle.select(SAPLING_SLOT)
+    print("Refueled! Fuel: " .. turtle.getFuelLevel())
+end
+
+local function tryForward()
+    for attempt = 1, MAX_RETRIES do
+        local ok, err = turtle.forward()
+        if ok then return true end
+        if err == "Out of fuel" then
+            waitForFuel()
+        else
+            turtle.dig()
+            turtle.attack()
+            sleep(0.5)
+        end
+    end
+    return false, "blocked"
+end
+
+local function tryUp()
+    for attempt = 1, MAX_RETRIES do
+        local ok, err = turtle.up()
+        if ok then return true end
+        if err == "Out of fuel" then
+            waitForFuel()
+        else
+            turtle.digUp()
+            turtle.attackUp()
+            sleep(0.5)
+        end
+    end
+    return false, "blocked"
+end
+
+local function tryDown()
+    for attempt = 1, MAX_RETRIES do
+        local ok, err = turtle.down()
+        if ok then return true end
+        if err == "Out of fuel" then
+            waitForFuel()
+        else
+            turtle.digDown()
+            turtle.attackDown()
+            sleep(0.5)
+        end
+    end
+    return false, "blocked"
+end
