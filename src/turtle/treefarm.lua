@@ -532,3 +532,114 @@ local function sortAndDump()
     face(SOUTH)
     turtle.select(SAPLING_SLOT)
 end
+
+-------------------------------
+-- Self-fueling
+-------------------------------
+
+local function findLogSlot()
+    for slot = 1, 16 do
+        local detail = turtle.getItemDetail(slot)
+        if detail and string.find(detail.name, "log") then
+            return slot
+        end
+    end
+    return nil
+end
+
+local function isInventoryEmpty()
+    for slot = 1, 16 do
+        if turtle.getItemCount(slot) > 0 then
+            return false
+        end
+    end
+    return true
+end
+
+-- Craft logs into planks and refuel. Must be at home, post-dump.
+local function craftAndRefuel()
+    local fuel = turtle.getFuelLevel()
+    if fuel == "unlimited" or fuel >= FUEL_THRESHOLD then
+        return true
+    end
+
+    print("Fuel low (" .. fuel .. "), crafting planks...")
+
+    while turtle.getFuelLevel() < FUEL_THRESHOLD do
+        -- Find a log
+        local logSlot = findLogSlot()
+        if not logSlot then
+            -- Try to pull a log from wood chest
+            face(WEST)
+            turtle.select(2) -- use slot 2 as temp
+            if not turtle.suck(1) then
+                face(SOUTH)
+                print("No logs available for fuel!")
+                return turtle.getFuelLevel() > 0
+            end
+            face(SOUTH)
+            logSlot = 2
+        end
+
+        -- Dump saplings to sapling chest temporarily
+        local hadSaplings = turtle.getItemCount(SAPLING_SLOT) > 0
+        if hadSaplings then
+            turtle.select(SAPLING_SLOT)
+            face(EAST)
+            turtle.drop()
+            face(SOUTH)
+        end
+
+        -- Clear all slots except the log
+        -- (should already be clear post-dump, but ensure)
+        for slot = 1, 16 do
+            if slot ~= logSlot and turtle.getItemCount(slot) > 0 then
+                turtle.select(slot)
+                face(WEST)
+                turtle.drop()
+                face(SOUTH)
+            end
+        end
+
+        -- Move log to slot 2 (a crafting grid slot) if not already there
+        if logSlot ~= 2 then
+            turtle.select(logSlot)
+            turtle.transferTo(2)
+        end
+
+        -- Craft: 1 log in slot 2, everything else empty → 4 planks
+        turtle.select(2)
+        local ok, err = turtle.craft()
+        if not ok then
+            print("Craft failed: " .. tostring(err))
+            -- Move the log out of the way and abort
+            turtle.select(2)
+            face(WEST)
+            turtle.drop()
+            face(SOUTH)
+            break
+        end
+
+        -- Refuel from the planks (they'll be in the first available slot)
+        for slot = 1, 16 do
+            if turtle.getItemCount(slot) > 0 then
+                turtle.select(slot)
+                if turtle.refuel(0) then
+                    turtle.refuel()
+                end
+            end
+        end
+
+        -- Pull saplings back
+        if hadSaplings then
+            turtle.select(SAPLING_SLOT)
+            face(EAST)
+            turtle.suck()
+            face(SOUTH)
+        end
+    end
+
+    turtle.select(SAPLING_SLOT)
+    print("Fuel: " .. turtle.getFuelLevel())
+    return turtle.getFuelLevel() > 0
+end
