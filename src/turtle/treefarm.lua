@@ -224,7 +224,9 @@ local function nextTreePos(row, col)
     return nil, nil -- patrol complete
 end
 
--- Navigate to a specific tree position in the grid
+-- Navigate to a specific tree position in the grid.
+-- Uses dead reckoning — chunk unload or external movement will desync
+-- the turtle's tracked position. No GPS fallback is implemented.
 local function navigateToTree(row, col)
     local targetX, targetZ = gridToBlocks(row, col)
     local currentX, currentZ
