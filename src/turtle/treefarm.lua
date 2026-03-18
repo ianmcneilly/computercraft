@@ -303,3 +303,51 @@ local function returnHome()
     saveState()
     return true
 end
+
+-------------------------------
+-- Tree detection & harvesting
+-------------------------------
+
+local function isLog(inspectFn)
+    local ok, data = inspectFn()
+    if not ok then return false end
+    -- Match any log block (oak, birch, spruce, etc.)
+    return data and data.name and string.find(data.name, "log")
+end
+
+local function isSapling(inspectFn)
+    local ok, data = inspectFn()
+    if not ok then return false end
+    return data and data.name and string.find(data.name, "sapling")
+end
+
+local function harvestTree()
+    -- Turtle is one block back from tree, facing the tree
+    -- Step 1: dig bottom log and move into trunk
+    turtle.dig()
+    if not tryForward() then return false end
+
+    -- Step 2: dig upward
+    state.pos.phase = "harvesting_up"
+    state.pos.height = 0
+    saveState()
+
+    while isLog(turtle.inspectUp) do
+        turtle.digUp()
+        if not tryUp() then break end
+        state.pos.height = state.pos.height + 1
+        saveState()
+    end
+
+    -- Step 3: descend back to ground
+    state.pos.phase = "harvesting_down"
+    saveState()
+
+    while state.pos.height > 0 do
+        if not tryDown() then break end
+        state.pos.height = state.pos.height - 1
+        saveState()
+    end
+
+    return true
+end
