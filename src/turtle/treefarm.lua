@@ -643,3 +643,239 @@ local function craftAndRefuel()
     print("Fuel: " .. turtle.getFuelLevel())
     return turtle.getFuelLevel() > 0
 end
+
+-------------------------------
+-- Patrol
+-------------------------------
+
+local function processTreePosition()
+    -- Turtle is in the walkway, facing the tree position
+    -- Check if there's a log (grown tree)
+    if isLog(turtle.inspect) then
+        print(string.format("Harvesting tree at row %d, col %d",
+            state.pos.row, state.pos.col))
+        harvestTree()
+        suckPatrol()
+        replant()
+    elseif not isSapling(turtle.inspect) then
+        -- Empty spot, no tree and no sapling — replant
+        local count = turtle.getItemCount(SAPLING_SLOT)
+        if count > 0 then
+            turtle.select(SAPLING_SLOT)
+            turtle.place()
+        end
+    end
+    -- If sapling already there, skip
+end
+
+local function patrol()
+    -- Determine starting position (check phase BEFORE overwriting it)
+    local row, col = 1, 1
+    if state.pos.row > 0 and state.pos.col > 0 then
+        -- Resuming mid-patrol — get next position after current
+        row, col = state.pos.row, state.pos.col
+        -- If we were traveling, we haven't processed this position yet
+        -- If we were in another phase (harvest complete, etc.), skip to next
+        if state.pos.phase ~= "traveling" then
+            row, col = nextTreePos(row, col)
+            if not row then return true end -- patrol was on last tree
+        end
+    end
+
+    state.patrolStartTime = os.epoch("utc")
+    state.pos.phase = "traveling"
+    saveState()
+
+    -- Navigate to starting position
+    if not navigateToTree(row, col) then return false end
+
+    -- Process each tree position in snake order
+    while row do
+        state.pos.row = row
+        state.pos.col = col
+        state.pos.phase = "traveling"
+        saveState()
+
+        -- Face the tree (turtle approaches from walkway)
+        -- After navigateToTree, turtle is at the walkway position
+        -- Tree is one block to the south (in front when facing south)
+        face(SOUTH)
+
+        processTreePosition()
+
+        -- Check if inventory is getting full
+        if isInventoryFull() then
+            print("Inventory full, returning home early...")
+            returnHome()
+            sortAndDump()
+            craftAndRefuel()
+            -- Resume patrol from next position
+            row, col = nextTreePos(row, col)
+            if not row then break end
+            navigateToTree(row, col)
+        else
+            -- Move to next position
+            local nextRow, nextCol = nextTreePos(row, col)
+            if not nextRow then break end -- patrol complete
+            navigateToTree(nextRow, nextCol)
+            row, col = nextRow, nextCol
+        end
+    end
+
+    return true
+end
+
+-------------------------------
+-- Main loop
+-------------------------------
+
+local function mainLoop()
+    while true do
+        -- Patrol the grid
+        patrol()
+
+        -- Return home
+        returnHome()
+
+        -- Sort and dump inventory
+        sortAndDump()
+
+        -- Refuel if needed
+        craftAndRefuel()
+
+        -- Calculate sleep time
+        local elapsed = os.epoch("utc") - state.patrolStartTime
+        local remaining = (GROW_TIME * 1000) - elapsed
+        if remaining > 0 then
+            local sleepSec = math.floor(remaining / 1000)
+            print(string.format("Sleeping %d seconds...", sleepSec))
+            state.pos.phase = "home"
+            saveState()
+            sleep(sleepSec)
+        else
+            print("Patrol took longer than grow time, starting next patrol...")
+        end
+    end
+end
+
+-------------------------------
+-- Startup & resume
+-------------------------------
+
+local function startup()
+    print("=== Tree Farm ===")
+
+    -- Try to load saved state
+    state = loadState()
+
+    if state then
+        print(string.format("Resuming: %dx%d farm, pos=(%d,%d), phase=%s",
+            state.rows, state.cols,
+            state.pos.row, state.pos.col,
+            state.pos.phase))
+
+        -- Handle resume based on phase
+        if state.pos.phase == "harvesting_up" then
+            print("Resuming harvest (climbing)...")
+            -- Re-enter the dig-up loop
+            while isLog(turtle.inspectUp) do
+                turtle.digUp()
+                if not tryUp() then break end
+                state.pos.height = state.pos.height + 1
+                saveState()
+            end
+            state.pos.phase = "harvesting_down"
+            saveState()
+            while state.pos.height > 0 do
+                if not tryDown() then break end
+                state.pos.height = state.pos.height - 1
+                saveState()
+            end
+            suckPatrol()
+            replant()
+            -- Continue patrol from next position
+        elseif state.pos.phase == "harvesting_down" then
+            print("Resuming harvest (descending)...")
+            while state.pos.height > 0 do
+                if not tryDown() then break end
+                state.pos.height = state.pos.height - 1
+                saveState()
+            end
+            suckPatrol()
+            replant()
+        elseif state.pos.phase == "suck_patrol" then
+            print("Interrupted during collection, returning home...")
+            returnHome()
+            sortAndDump()
+            craftAndRefuel()
+        elseif state.pos.phase == "returning" then
+            print("Resuming return home...")
+            returnHome()
+            sortAndDump()
+            craftAndRefuel()
+        elseif state.pos.phase == "home" then
+            print("Was at home, starting fresh patrol...")
+        elseif state.pos.phase == "traveling" then
+            print("Resuming patrol...")
+            -- patrol() will pick up from current position
+        end
+    else
+        -- First run — need dimensions
+        if #args < 2 then
+            printUsage()
+            return false
+        end
+
+        local rows = tonumber(args[1])
+        local cols = tonumber(args[2])
+        if not rows or not cols or rows < 1 or cols < 1 then
+            print("Rows and columns must be positive numbers.")
+            return false
+        end
+
+        state = initState(rows, cols)
+        saveState()
+
+        print(string.format("Starting %dx%d tree farm", rows, cols))
+        print(string.format("Grid: %d tree positions", rows * cols))
+        print(string.format("Fuel: %s", tostring(turtle.getFuelLevel())))
+        print()
+    end
+
+    return true
+end
+
+-------------------------------
+-- Entry point
+-------------------------------
+
+local function main()
+    if not startup() then return end
+
+    -- Initial sapling check — try to pull from chest
+    if turtle.getItemCount(SAPLING_SLOT) < SAPLING_MIN then
+        face(EAST)
+        turtle.select(SAPLING_SLOT)
+        turtle.suck()
+        face(SOUTH)
+    end
+
+    mainLoop()
+end
+
+-- Run with error protection
+-- Note: CC:T Lua has no debug.traceback — use tostring(e) only
+local ok, err = xpcall(main, function(e)
+    if state then
+        pcall(saveState)
+    end
+    return tostring(e)
+end)
+
+if not ok then
+    print()
+    print("*** TREE FARM ERROR ***")
+    print(err)
+    print()
+    print("State saved. Restart to resume.")
+end
