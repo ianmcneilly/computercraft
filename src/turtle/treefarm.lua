@@ -47,3 +47,38 @@ local function printUsage()
     print("First run: provide dimensions.")
     print("Subsequent runs: resumes from saved state.")
 end
+
+-------------------------------
+-- State persistence
+-------------------------------
+
+local function saveState()
+    local f = fs.open(STATE_FILE, "w")
+    f.write(textutils.serialize(state))
+    f.close()
+end
+
+local function loadState()
+    if fs.exists(STATE_FILE) then
+        local f = fs.open(STATE_FILE, "r")
+        local data = f.readAll()
+        f.close()
+        return textutils.unserialize(data)
+    end
+    return nil
+end
+
+local function initState(rows, cols)
+    return {
+        rows = rows,
+        cols = cols,
+        pos = {
+            row = 0,
+            col = 0,
+            phase = "home",
+            height = 0,
+            facing = SOUTH,
+        },
+        patrolStartTime = 0,
+    }
+end
