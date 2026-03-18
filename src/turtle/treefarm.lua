@@ -179,3 +179,127 @@ local function tryDown()
     end
     return false, "blocked"
 end
+
+-------------------------------
+-- Navigation
+-------------------------------
+
+-- Convert grid position (row, col) to block offsets from home
+-- Home = (0, 0) in block coords
+-- Row 1, Col 1 = (HOME_TO_FIRST south, 0 east) — first column aligns with home
+-- Note: chunk unload during travel can desync position. No GPS fallback.
+local function gridToBlocks(row, col)
+    local z = HOME_TO_FIRST + (row - 1) * (SPACING + 1)
+    local x = (col - 1) * (SPACING + 1)
+    return x, z
+end
+
+-- Get next tree position in snake pattern
+-- Returns row, col or nil if patrol is complete
+local function nextTreePos(row, col)
+    local isLeftToRight = (row % 2) == 1
+
+    if isLeftToRight then
+        if col < state.cols then
+            return row, col + 1
+        end
+    else
+        if col > 1 then
+            return row, col - 1
+        end
+    end
+
+    -- End of row — move to next row
+    if row < state.rows then
+        local nextRow = row + 1
+        local nextCol
+        if nextRow % 2 == 1 then
+            nextCol = 1
+        else
+            nextCol = state.cols
+        end
+        return nextRow, nextCol
+    end
+
+    return nil, nil -- patrol complete
+end
+
+-- Navigate to a specific tree position in the grid
+local function navigateToTree(row, col)
+    local targetX, targetZ = gridToBlocks(row, col)
+    local currentX, currentZ
+    if state.pos.row == 0 and state.pos.col == 0 then
+        currentX, currentZ = 0, 0
+    else
+        currentX, currentZ = gridToBlocks(state.pos.row, state.pos.col)
+    end
+
+    local dx = targetX - currentX
+    local dz = targetZ - currentZ
+
+    -- Move east/west
+    if dx > 0 then
+        face(EAST)
+        for i = 1, dx do
+            if not tryForward() then return false end
+        end
+    elseif dx < 0 then
+        face(WEST)
+        for i = 1, -dx do
+            if not tryForward() then return false end
+        end
+    end
+
+    -- Move north/south
+    if dz > 0 then
+        face(SOUTH)
+        for i = 1, dz do
+            if not tryForward() then return false end
+        end
+    elseif dz < 0 then
+        face(NORTH)
+        for i = 1, -dz do
+            if not tryForward() then return false end
+        end
+    end
+
+    state.pos.row = row
+    state.pos.col = col
+    return true
+end
+
+local function returnHome()
+    state.pos.phase = "returning"
+    saveState()
+
+    if state.pos.row == 0 and state.pos.col == 0 then
+        face(SOUTH)
+        return true
+    end
+
+    -- Navigate back to home (0, 0)
+    local currentX, currentZ = gridToBlocks(state.pos.row, state.pos.col)
+
+    -- Move west to x=0
+    if currentX > 0 then
+        face(WEST)
+        for i = 1, currentX do
+            if not tryForward() then return false end
+        end
+    end
+
+    -- Move north to z=0
+    if currentZ > 0 then
+        face(NORTH)
+        for i = 1, currentZ do
+            if not tryForward() then return false end
+        end
+    end
+
+    state.pos.row = 0
+    state.pos.col = 0
+    face(SOUTH)
+    state.pos.phase = "home"
+    saveState()
+    return true
+end
