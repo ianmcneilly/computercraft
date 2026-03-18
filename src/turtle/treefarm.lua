@@ -351,3 +351,76 @@ local function harvestTree()
 
     return true
 end
+
+-------------------------------
+-- Suck patrol
+-------------------------------
+
+local function suckHere()
+    turtle.suck()
+    turtle.suckDown()
+    turtle.suckUp()
+end
+
+local function suckPatrol()
+    state.pos.phase = "suck_patrol"
+    saveState()
+
+    -- Turtle is at trunk base, facing south
+    -- First, suck at center
+    suckHere()
+
+    -- Walk a box: south, turn left (east), north x2, turn left (west),
+    -- south x2, arrive back near start
+
+    -- South 1
+    tryForward()
+    suckHere()
+
+    -- Turn left, go east 1
+    turnLeft()
+    tryForward()
+    suckHere()
+
+    -- Turn left, go north 1
+    turnLeft()
+    tryForward()
+    suckHere()
+
+    -- North 1 more
+    tryForward()
+    suckHere()
+
+    -- Turn left, go west 1
+    turnLeft()
+    tryForward()
+    suckHere()
+
+    -- West 1 more
+    tryForward()
+    suckHere()
+
+    -- Turn left, go south 1
+    turnLeft()
+    tryForward()
+    suckHere()
+
+    -- South 1 more — back to starting row, west column
+    tryForward()
+    suckHere()
+
+    -- Now at (south+1, west-1) from center — move back to center
+    -- Turn left (now facing east), forward 1 = center column
+    turnLeft()
+    tryForward()
+
+    -- Turn left (now facing north), forward 1 = center row
+    turnLeft()
+    tryForward()
+
+    -- Now at center, facing north — face south to restore
+    turnRight()
+    turnRight()
+
+    return true
+end
