@@ -443,3 +443,92 @@ local function replant()
         turtle.place()
     end
 end
+
+-------------------------------
+-- Inventory management
+-------------------------------
+
+local function isInventoryFull()
+    for slot = 1, 16 do
+        if turtle.getItemCount(slot) == 0 then
+            return false
+        end
+    end
+    return true
+end
+
+local function isSaplingItem(slot)
+    local detail = turtle.getItemDetail(slot)
+    if not detail then return false end
+    return string.find(detail.name, "sapling") ~= nil
+end
+
+local function getSaplingCount()
+    local count = 0
+    for slot = 1, 16 do
+        if isSaplingItem(slot) then
+            count = count + turtle.getItemCount(slot)
+        end
+    end
+    return count
+end
+
+-- Consolidate all saplings into SAPLING_SLOT
+local function consolidateSaplings()
+    for slot = 2, 16 do
+        if isSaplingItem(slot) then
+            turtle.select(slot)
+            turtle.transferTo(SAPLING_SLOT)
+        end
+    end
+    turtle.select(SAPLING_SLOT)
+end
+
+-- Must be called at home position, facing south
+local function sortAndDump()
+    -- First consolidate saplings into slot 1
+    consolidateSaplings()
+
+    -- Face west (wood chest) — turnRight from south
+    face(WEST)
+
+    -- Dump non-sapling items from slots 2-16
+    for slot = 2, 16 do
+        if turtle.getItemCount(slot) > 0 and not isSaplingItem(slot) then
+            turtle.select(slot)
+            if not turtle.drop() then
+                print("Warning: wood chest may be full")
+            end
+        end
+    end
+
+    -- Face east (sapling chest)
+    face(EAST)
+
+    -- Dump excess saplings beyond a full stack in slot 1
+    -- Slot 1 can hold up to 64; dump anything over SAPLING_MIN
+    local sapCount = turtle.getItemCount(SAPLING_SLOT)
+    if sapCount > 64 then
+        -- This shouldn't happen since it's one slot, but safety check
+        turtle.select(SAPLING_SLOT)
+        turtle.drop(sapCount - 64)
+    end
+
+    -- Dump any remaining sapling stacks in other slots
+    for slot = 2, 16 do
+        if turtle.getItemCount(slot) > 0 and isSaplingItem(slot) then
+            turtle.select(slot)
+            turtle.drop()
+        end
+    end
+
+    -- If saplings low, pull from sapling chest
+    if turtle.getItemCount(SAPLING_SLOT) < SAPLING_MIN then
+        turtle.select(SAPLING_SLOT)
+        turtle.suck(SAPLING_MIN - turtle.getItemCount(SAPLING_SLOT))
+    end
+
+    -- Restore facing south
+    face(SOUTH)
+    turtle.select(SAPLING_SLOT)
+end
