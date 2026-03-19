@@ -232,20 +232,24 @@ local function nextTreePos(row, col)
     return nil, nil -- patrol complete
 end
 
--- Navigate to a specific tree position in the grid.
+-- Navigate to the walkway position for a tree (one block NORTH of the tree).
+-- The turtle stands in the walkway and faces south to interact with the tree.
 -- Uses dead reckoning — chunk unload or external movement will desync
 -- the turtle's tracked position. No GPS fallback is implemented.
 local function navigateToTree(row, col)
     local targetX, targetZ = gridToBlocks(row, col)
+    local walkwayZ = targetZ - 1  -- stand one block north of tree
+
     local currentX, currentZ
     if state.pos.row == 0 and state.pos.col == 0 then
-        currentX, currentZ = 0, 0
+        currentX, currentZ = 0, 0  -- home position
     else
-        currentX, currentZ = gridToBlocks(state.pos.row, state.pos.col)
+        local cx, cz = gridToBlocks(state.pos.row, state.pos.col)
+        currentX, currentZ = cx, cz - 1  -- walkway of current tree
     end
 
     local dx = targetX - currentX
-    local dz = targetZ - currentZ
+    local dz = walkwayZ - currentZ
 
     -- Move east/west
     if dx > 0 then
@@ -287,8 +291,10 @@ local function returnHome()
         return true
     end
 
-    -- Navigate back to home (0, 0)
-    local currentX, currentZ = gridToBlocks(state.pos.row, state.pos.col)
+    -- Navigate back to home (0, 0) from walkway position
+    local treeX, treeZ = gridToBlocks(state.pos.row, state.pos.col)
+    local currentX = treeX
+    local currentZ = treeZ - 1  -- turtle is at walkway, one block north of tree
 
     -- Move west to x=0
     if currentX > 0 then
