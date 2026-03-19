@@ -771,12 +771,18 @@ local function patrol()
             -- Resume patrol from next position
             row, col = nextTreePos(row, col)
             if not row then break end
-            navigateToTree(row, col)
+            if not navigateToTree(row, col) then
+                print("Navigation blocked, aborting patrol")
+                break
+            end
         else
             -- Move to next position
             local nextRow, nextCol = nextTreePos(row, col)
             if not nextRow then break end -- patrol complete
-            navigateToTree(nextRow, nextCol)
+            if not navigateToTree(nextRow, nextCol) then
+                print("Navigation blocked, aborting patrol")
+                break
+            end
             row, col = nextRow, nextCol
         end
     end
