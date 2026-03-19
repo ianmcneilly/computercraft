@@ -251,64 +251,12 @@ local function navigateToTree(row, col)
     local dx = targetX - currentX
     local dz = walkwayZ - currentZ
 
-    -- When moving south, the path may cross tree positions (saplings/trees
-    -- sit one block south of each walkway). We must avoid breaking them.
-    -- Strategy: sidestep one block EAST to get off tree columns, travel
-    -- south, then adjust east/west to the target. Tree columns are at
-    -- multiples of 5 (0, 5, 10, 15...), so x+1 is always safe.
-    -- Special case: at z=0 (home row) the sapling chest is at x=1, so
-    -- we step south 1 first to clear the chest row before sidestepping.
-
-    local willCrossTrees = false
     if dz > 0 then
-        if state.pos.row > 0 then
-            -- From a tree walkway, the tree is always 1 block south
-            willCrossTrees = true
-        elseif dz >= HOME_TO_FIRST then
-            -- From home, going far enough south to cross row 1's trees
-            willCrossTrees = true
-        end
-    end
-
-    if dz > 0 and willCrossTrees then
-        -- Need to sidestep east to avoid tree positions
-        if currentZ == 0 then
-            -- At home row — step south 1 first to clear the chests
-            face(SOUTH)
-            if not tryForward() then return false end
-            currentZ = 1
-            dz = dz - 1
-        end
-
-        -- Step east 1 (off tree columns)
-        face(EAST)
-        if not tryForward() then return false end
-
-        -- Move south
-        if dz > 0 then
-            face(SOUTH)
-            for _ = 1, dz do
-                if not tryForward() then return false end
-            end
-        end
-
-        -- Adjust east/west to reach target x (compensate for sidestep)
-        local adjustX = targetX - (currentX + 1)
-        if adjustX > 0 then
-            face(EAST)
-            for _ = 1, adjustX do
-                if not tryForward() then return false end
-            end
-        elseif adjustX < 0 then
-            face(WEST)
-            for _ = 1, -adjustX do
-                if not tryForward() then return false end
-            end
-        end
-
-    elseif dz > 0 then
-        -- Moving south but no trees in the way (home to row 1)
-        -- Move east/west first, then south
+        -- Moving south. Path may cross tree positions where saplings sit.
+        -- Move east/west first (at current walkway z, always safe), then
+        -- move south with sapling detection: if we hit a sapling, dig
+        -- through it, step one more south to clear the spot, turn around
+        -- and replant it, then continue. No sidestep needed.
         if dx > 0 then
             face(EAST)
             for _ = 1, dx do
@@ -322,10 +270,31 @@ local function navigateToTree(row, col)
         end
 
         face(SOUTH)
-        for _ = 1, dz do
-            if not tryForward() then return false end
-        end
+        local step = 0
+        while step < dz do
+            -- Check if next block is a sapling we need to preserve
+            local needReplant = false
+            local ok, data = turtle.inspect()
+            if ok and data.name and string.find(data.name, "sapling") then
+                needReplant = true
+            end
 
+            if not tryForward() then return false end
+            step = step + 1
+
+            if needReplant and step < dz then
+                -- Move one more step south to clear the sapling position
+                if not tryForward() then return false end
+                step = step + 1
+                -- Turn around and replant
+                face(NORTH)
+                if turtle.getItemCount(SAPLING_SLOT) > 0 then
+                    turtle.select(SAPLING_SLOT)
+                    turtle.place()
+                end
+                face(SOUTH)
+            end
+        end
     else
         -- Same row or moving north — no tree positions in the way
         if dx > 0 then
