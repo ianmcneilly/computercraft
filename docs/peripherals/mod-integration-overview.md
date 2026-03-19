@@ -78,6 +78,6 @@ These mods are in the pack but have no known CC:T integration:
 
 ## Notes
 
-- **Advanced Peripherals**: Check if this mod is installed — it dramatically expands CC:T integration with AE2, RS, Mekanism, and adds chat boxes, player detectors, etc. Needs confirmation whether it's in this pack.
+- **Advanced Peripherals is NOT installed.** AE2 and Refined Storage must be accessed via native CC:T peripheral support or generic inventory/fluid/energy peripherals.
 - Peripheral docs will be created on-demand in `docs/peripherals/<modname>.md` as needed.
 - Use `peripheral.getType()` and `peripheral.getMethods()` in-game to discover available peripherals on any block.
