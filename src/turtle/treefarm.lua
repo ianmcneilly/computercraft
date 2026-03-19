@@ -251,29 +251,54 @@ local function navigateToTree(row, col)
     local dx = targetX - currentX
     local dz = walkwayZ - currentZ
 
-    -- Move east/west
-    if dx > 0 then
-        face(EAST)
-        for i = 1, dx do
-            if not tryForward() then return false end
-        end
-    elseif dx < 0 then
-        face(WEST)
-        for i = 1, -dx do
-            if not tryForward() then return false end
-        end
-    end
-
-    -- Move north/south
     if dz > 0 then
+        -- Moving south (between rows). The direct path would walk through
+        -- tree positions in the current row. Sidestep one block west first
+        -- to avoid breaking planted saplings, then travel south, then
+        -- move east to the target column (compensating for the sidestep).
+        face(WEST)
+        if not tryForward() then return false end
+
+        -- Move south
         face(SOUTH)
-        for i = 1, dz do
+        for _ = 1, dz do
             if not tryForward() then return false end
         end
-    elseif dz < 0 then
-        face(NORTH)
-        for i = 1, -dz do
-            if not tryForward() then return false end
+
+        -- Move east: undo the west sidestep (+1) plus any east/west delta
+        local eastMoves = dx + 1
+        if eastMoves > 0 then
+            face(EAST)
+            for _ = 1, eastMoves do
+                if not tryForward() then return false end
+            end
+        elseif eastMoves < 0 then
+            face(WEST)
+            for _ = 1, -eastMoves do
+                if not tryForward() then return false end
+            end
+        end
+    else
+        -- Same row or moving north — no tree positions in the way
+        -- Move east/west
+        if dx > 0 then
+            face(EAST)
+            for _ = 1, dx do
+                if not tryForward() then return false end
+            end
+        elseif dx < 0 then
+            face(WEST)
+            for _ = 1, -dx do
+                if not tryForward() then return false end
+            end
+        end
+
+        -- Move north (if needed)
+        if dz < 0 then
+            face(NORTH)
+            for _ = 1, -dz do
+                if not tryForward() then return false end
+            end
         end
     end
 
