@@ -337,13 +337,14 @@ local function refuelFromChest()
 end
 
 local function returnAndDump()
-    local sx, sy, sz = pos.x, pos.y, pos.z
+    local sx, sy, sz, sf = pos.x, pos.y, pos.z, facing
     print("Inventory full. Returning to dump...")
     goTo(0, 0, 0)
     dumpInventory()
     refuelFromChest()
     print("Resuming mining...")
     goTo(sx, sy, sz)
+    face(sf)
 end
 
 -------------------------------
@@ -369,7 +370,7 @@ local function checkFuel()
         if fuel <= safeThreshold then
             if fuel > homeDist + 5 then
                 -- Enough to get home — go refuel from chest
-                local sx, sy, sz = pos.x, pos.y, pos.z
+                local sx, sy, sz, sf = pos.x, pos.y, pos.z, facing
                 print("Low fuel (" .. fuel .. "). Returning to refuel...")
                 goTo(0, 0, 0)
                 dumpInventory()
@@ -379,6 +380,7 @@ local function checkFuel()
                 end
                 print("Refueled! Fuel: " .. turtle.getFuelLevel() .. ". Resuming...")
                 goTo(sx, sy, sz)
+                face(sf)
             else
                 -- Too far from home to return safely
                 waitForFuel()
