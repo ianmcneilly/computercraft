@@ -67,6 +67,16 @@ local function autoRefuel()
     end
 end
 
+local function isFuelItem(name)
+    if name == "minecraft:coal" or name == "minecraft:charcoal" then
+        return true
+    end
+    if string.find(name, "_planks$") then
+        return true
+    end
+    return false
+end
+
 -- Wait indefinitely for the player to add fuel
 local function waitForFuel()
     if turtle.getFuelLevel() == "unlimited" then return end
@@ -286,11 +296,52 @@ local function dumpInventory()
     turtle.select(1)
 end
 
+local function refuelFromChest()
+    face(BACK)
+    if turtle.getFuelLevel() == "unlimited" then return end
+    local targetFuel = math.max(FUEL_BUFFER * 4, WIDTH * LENGTH * 2)
+    if turtle.getFuelLevel() >= targetFuel then return end
+
+    -- Pull items from chest into empty slots
+    local pulledSlots = {}
+    for slot = 1, 16 do
+        if turtle.getItemCount(slot) == 0 then
+            turtle.select(slot)
+            if turtle.suck() then
+                table.insert(pulledSlots, slot)
+            else
+                break
+            end
+        end
+    end
+
+    -- Refuel from fuel items
+    for _, slot in ipairs(pulledSlots) do
+        local detail = turtle.getItemDetail(slot)
+        if detail and isFuelItem(detail.name) then
+            turtle.select(slot)
+            turtle.refuel()
+        end
+    end
+
+    -- Put non-fuel items back in the chest
+    face(BACK)
+    for _, slot in ipairs(pulledSlots) do
+        if turtle.getItemCount(slot) > 0 then
+            turtle.select(slot)
+            turtle.drop()
+        end
+    end
+
+    turtle.select(1)
+end
+
 local function returnAndDump()
     local sx, sy, sz = pos.x, pos.y, pos.z
     print("Inventory full. Returning to dump...")
     goTo(0, 0, 0)
     dumpInventory()
+    refuelFromChest()
     print("Resuming mining...")
     goTo(sx, sy, sz)
 end
@@ -299,17 +350,39 @@ end
 -- Fuel check (uses goTo, so defined after navigation)
 -------------------------------
 
+local function distanceToHome()
+    return math.abs(pos.x) + math.abs(pos.y) + math.abs(pos.z)
+end
+
 local function checkFuel()
     local fuel = turtle.getFuelLevel()
     if fuel == "unlimited" then return end
 
-    local returnCost = math.abs(pos.x) + math.abs(pos.y) + math.abs(pos.z) + 10
-    if fuel <= returnCost then
+    local homeDist = distanceToHome()
+    local safeThreshold = homeDist + 50
+
+    if fuel <= safeThreshold then
+        -- Try refueling from inventory first
         tryRefuel()
         fuel = turtle.getFuelLevel()
-        if fuel <= returnCost then
-            -- Not enough fuel to get home — wait here for player to add fuel
-            waitForFuel()
+
+        if fuel <= safeThreshold then
+            if fuel > homeDist + 5 then
+                -- Enough to get home — go refuel from chest
+                local sx, sy, sz = pos.x, pos.y, pos.z
+                print("Low fuel (" .. fuel .. "). Returning to refuel...")
+                goTo(0, 0, 0)
+                dumpInventory()
+                refuelFromChest()
+                if turtle.getFuelLevel() == 0 then
+                    waitForFuel()
+                end
+                print("Refueled! Fuel: " .. turtle.getFuelLevel() .. ". Resuming...")
+                goTo(sx, sy, sz)
+            else
+                -- Too far from home to return safely
+                waitForFuel()
+            end
         end
     end
 end
@@ -395,11 +468,12 @@ local function quarry()
     print("Chest should be directly behind starting position.")
     print()
 
-    -- Auto-refuel from any fuel in inventory
+    -- Auto-refuel from inventory and chest
     local fuel = turtle.getFuelLevel()
     if fuel ~= "unlimited" then
         print("Fuel: " .. fuel)
         tryRefuel()
+        refuelFromChest()
         fuel = turtle.getFuelLevel()
         print("Fuel after auto-refuel: " .. fuel)
 
@@ -410,7 +484,7 @@ local function quarry()
         fuel = turtle.getFuelLevel()
         if fuel < WIDTH * LENGTH * 3 then
             print(string.format("WARNING: Fuel (%d) may be low for %dx%d.", fuel, WIDTH, LENGTH))
-            print("Will auto-refuel from mined coal.")
+            print("Will return to chest to refuel as needed.")
         end
     end
 
