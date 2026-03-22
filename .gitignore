@@ -15,3 +15,7 @@ desktop.ini
 *.bak
 .superpowers/
 .claude/
+
+# Node.js (bridge server)
+node_modules/
+package-lock.json

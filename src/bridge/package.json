@@ -1,0 +1,14 @@
+{
+  "name": "turtle-bridge",
+  "version": "1.0.0",
+  "description": "MCP server + WebSocket relay for Claude-controlled CC:T turtles",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "ws": "^8.18.0"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "turtle-bridge": {
+      "command": "node",
+      "args": ["src/bridge/server.js"]
+    }
+  }
+}
